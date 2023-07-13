@@ -1,4 +1,4 @@
-package lib
+package utils
 
 import (
 	"context"
@@ -13,7 +13,6 @@ import (
 
 var callCollection *mongo.Collection = configs.GetCollection(configs.DB, "calls")
 var userCollection *mongo.Collection = configs.GetCollection(configs.DB, "users")
-var organizationCollection *mongo.Collection = configs.GetCollection(configs.DB, "organizations")
 
 func LogCall(key models.Key, originalURL string, routeName string) {
 	// first log call in the db
@@ -22,10 +21,10 @@ func LogCall(key models.Key, originalURL string, routeName string) {
 
 	// first find the user that called the api
 	newCall := models.Call{
-		Organization: key.Organization,
-		Key:          key.ID,
-		RequestURL:   originalURL,
-		CreatedAt:    time.Now().Unix(),
+		User:       key.User,
+		Key:        key.ID,
+		RequestURL: originalURL,
+		CreatedAt:  time.Now().Unix(),
 	}
 
 	_, err := callCollection.InsertOne(ctx, newCall)
@@ -40,13 +39,13 @@ func LogCall(key models.Key, originalURL string, routeName string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		var organization models.Organization
+		var user models.User
 
-		err := organizationCollection.FindOne(ctx, bson.M{"_id": key.Organization}).Decode(&organization)
+		err := userCollection.FindOne(ctx, bson.M{"_id": key.User}).Decode(&user)
 
 		if err != nil {
 			if err == mongo.ErrNoDocuments {
-				//no organization found
+				//no user found
 				panic(err)
 			}
 		}
@@ -55,7 +54,7 @@ func LogCall(key models.Key, originalURL string, routeName string) {
 
 		params := &stripe.UsageRecordParams{
 			Quantity: stripe.Int64(1),
-			SubscriptionItem: stripe.String(organization.SubscriptionItemID),
+			SubscriptionItem: stripe.String(user.SubscriptionItemID),
 			Timestamp: stripe.Int64(time.Now().Unix()),
 		}
 		ur, _ := usagerecord.New(params)*/
