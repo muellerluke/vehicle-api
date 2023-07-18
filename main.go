@@ -9,16 +9,16 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/monitor"
-	"github.com/gofiber/template/html/v2"
+	//"github.com/gofiber/template/html/v2"
 )
 
 func main() {
 	//create html engine
-	engine := html.New("./views", ".html")
+	//engine := html.New("./views", ".html")
 
 	app := fiber.New(fiber.Config{
-		BodyLimit:   1024 * 1024 * 10,
-		Views:       engine,
+		BodyLimit: 1024 * 1024 * 10,
+		//Views:       engine,
 		JSONEncoder: json.Marshal,
 		JSONDecoder: json.Unmarshal,
 	})

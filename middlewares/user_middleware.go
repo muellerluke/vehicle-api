@@ -25,6 +25,7 @@ func UserMiddleware(c *fiber.Ctx) error {
 
 	//retrieve user from session
 	if session.Get("user") == nil {
+		session.Destroy()
 		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusUnauthorized, Message: "error", Data: &fiber.Map{"data": "User not found"}})
 	}
 
@@ -37,6 +38,7 @@ func UserMiddleware(c *fiber.Ctx) error {
 	defer cancel()
 
 	if err != nil {
+		session.Destroy()
 		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusUnauthorized, Message: "error", Data: &fiber.Map{"data": err.Error()}})
 	}
 

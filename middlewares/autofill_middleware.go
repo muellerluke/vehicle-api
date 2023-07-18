@@ -20,29 +20,31 @@ func AutofillMiddleware(c *fiber.Ctx) error {
 	host := c.Hostname()
 	path := c.Path()
 	keyString := c.Query("key")
-	var route string = "years"
+	// get X-RapidAPI-Proxy-Secret header from request
+	rapidAPI := c.Get("X-RapidAPI-Proxy-Secret")
+	var route string = ""
 
 	//verify request has key
-	if keyString == "" {
+	if keyString == "" && rapidAPI == "" {
 		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusUnauthorized, Message: "error", Data: &fiber.Map{"data": "Key is required"}})
 	}
 
 	//verify query params for each path
 	switch path {
-	case "/api/v1/makes":
+	case "/api/v1/autofill/makes":
 		year := c.Query("year")
 		if year == "" {
 			return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": "Year is required"}})
 		}
 		route = "makes"
-	case "/api/v1/models":
+	case "/api/v1/autofill/models":
 		year := c.Query("year")
 		make := c.Query("make")
 		if year == "" || make == "" {
 			return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": "Year and make are required"}})
 		}
 		route = "models"
-	case "/api/v1/trims":
+	case "/api/v1/autofill/trims":
 		year := c.Query("year")
 		make := c.Query("make")
 		model := c.Query("model")
@@ -50,8 +52,16 @@ func AutofillMiddleware(c *fiber.Ctx) error {
 			return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": "Year, make, and model are required"}})
 		}
 		route = "trims"
-	default:
+	case "/api/v1/autofill/years":
+		route = "years"
+	}
+
+	if route == "" {
 		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": "Invalid path"}})
+	}
+
+	if rapidAPI == configs.RetrieveEnv("RAPID_API_SECRET") {
+		return c.Next()
 	}
 
 	//verify key for each host

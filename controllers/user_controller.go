@@ -12,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/stripe/stripe-go/v74"
 	"github.com/stripe/stripe-go/v74/customer"
+	"github.com/stripe/stripe-go/v74/setupintent"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -19,6 +20,7 @@ import (
 )
 
 var userCollection *mongo.Collection = configs.GetCollection(configs.DB, "users")
+var keyCollection *mongo.Collection = configs.GetCollection(configs.DB, "keys")
 var validate = validator.New()
 
 func Register(c *fiber.Ctx) error {
@@ -93,6 +95,52 @@ func Register(c *fiber.Ctx) error {
 	//need to send user email to verify account
 
 	return c.Status(http.StatusCreated).JSON(utils.ApiResponse{Status: http.StatusCreated, Message: "success", Data: &fiber.Map{"data": result}})
+}
+
+// users should only have one setup intent at a time, so we will use the old one if it exists
+func CreateSetupIntent(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	//retrieve session from fiber
+	store, err := configs.GetSession().Get(c)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": err.Error()}})
+	}
+
+	//retrieve user from session
+	user := store.Get("user")
+
+	//verify that user doesn't already have a setup intent created
+	var existingUser models.User
+	if err := userCollection.FindOne(ctx, bson.M{"_id": user.(models.User).ID}).Decode(&existingUser); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": err.Error()}})
+	}
+
+	stripe.Key = "sk_test_51NJLD1Ehn7EiUqOg07gWZiJHwYjTNzyPPTWxjGPHcVY9ub97ZjUQwPokfCphjwZRzrmNwywulQUyu3SbMJ2hxNZV00EMTaqsyP"
+
+	//if user already has a setup intent, return the client secret
+	if existingUser.SetupIntentID != "" {
+		si, err := setupintent.Get(
+			"seti_1NTW0L2eZvKYlo2CWChztztT",
+			nil,
+		)
+		if err == nil {
+			return c.Status(http.StatusCreated).JSON(utils.ApiResponse{Status: http.StatusCreated, Message: "success", Data: &fiber.Map{"client_secret": si.ClientSecret}})
+		}
+	}
+
+	params := &stripe.SetupIntentParams{
+		Customer: stripe.String(user.(models.User).StripeCustomerID),
+		PaymentMethodTypes: []*string{
+			stripe.String("card"),
+		},
+	}
+	si, _ := setupintent.New(params)
+
+	//update the user in the database with the setup intent id
+	_, err = userCollection.UpdateOne(ctx, bson.M{"_id": user.(models.User).ID}, bson.M{"$set": bson.M{"setup_intent_id": si.ID}})
+
+	return c.Status(http.StatusCreated).JSON(utils.ApiResponse{Status: http.StatusCreated, Message: "success", Data: &fiber.Map{"client_secret": si.ClientSecret}})
 }
 
 func Login(c *fiber.Ctx) error {
@@ -271,15 +319,88 @@ func ChangePassword(c *fiber.Ctx) error {
 		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": err.Error()}})
 	}
 
-	return c.Status(http.StatusOK).JSON(utils.ApiResponse{Status: http.StatusOK, Message: "success", Data: &fiber.Map{"signed_url": "hello"}})
+	return c.Status(http.StatusOK).JSON(utils.ApiResponse{Status: http.StatusOK, Message: "success", Data: &fiber.Map{"data": "Password changed successfully"}})
 }
 
 func UpdateProfile(c *fiber.Ctx) error {
-	return c.Status(http.StatusOK).JSON(utils.ApiResponse{Status: http.StatusOK, Message: "success", Data: &fiber.Map{"signed_url": "hello"}})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
+	//retrieve session from fiber
+	store, err := configs.GetSession().Get(c)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": err.Error()}})
+	}
+
+	//retrieve user from session
+	user := store.Get("user")
+	if user == nil {
+		return c.Status(http.StatusUnauthorized).JSON(utils.ApiResponse{Status: http.StatusUnauthorized, Message: "error", Data: &fiber.Map{"data": "Unauthorized"}})
+	}
+
+	//validate the request body
+	var payload models.User
+	if err := c.BodyParser(&payload); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": err.Error()}})
+	}
+
+	if err := userCollection.FindOneAndUpdate(ctx, models.User{Email: user.(models.User).Email}, bson.M{"$set": bson.M{"first_name": payload.FirstName, "last_name": payload.LastName}}).Decode(&user); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": err.Error()}})
+	}
+	return c.Status(http.StatusOK).JSON(utils.ApiResponse{Status: http.StatusOK, Message: "success", Data: &fiber.Map{"signed_url": "hello"}})
 }
 
 func GetProfile(c *fiber.Ctx) error {
-	return c.Status(http.StatusOK).JSON(utils.ApiResponse{Status: http.StatusOK, Message: "success", Data: &fiber.Map{"signed_url": "hello"}})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
+	//retrieve session from fiber
+	store, err := configs.GetSession().Get(c)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": err.Error()}})
+	}
+
+	//retrieve user from session
+	user := store.Get("user")
+	if user == nil {
+		return c.Status(http.StatusUnauthorized).JSON(utils.ApiResponse{Status: http.StatusUnauthorized, Message: "error", Data: &fiber.Map{"data": "Unauthorized"}})
+	}
+
+	var existingUser models.User
+	if err := userCollection.FindOne(ctx, models.User{Email: user.(models.User).Email}).Decode(&existingUser); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": err.Error()}})
+	}
+	return c.Status(http.StatusOK).JSON(utils.ApiResponse{Status: http.StatusOK, Message: "success", Data: &fiber.Map{"data": existingUser}})
+}
+
+func DeleteAccount(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	//retrieve session from fiber
+	store, err := configs.GetSession().Get(c)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": err.Error()}})
+	}
+
+	//retrieve user from session
+	user := store.Get("user")
+	if user == nil {
+		return c.Status(http.StatusUnauthorized).JSON(utils.ApiResponse{Status: http.StatusUnauthorized, Message: "error", Data: &fiber.Map{"data": "Unauthorized"}})
+	}
+
+	//delete the user
+	if _, err := userCollection.DeleteOne(ctx, models.User{Email: user.(models.User).Email}); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": err.Error()}})
+	}
+
+	//delete all keys associated with the user
+	if _, err := keyCollection.DeleteMany(ctx, bson.M{"user": user.(models.User).ID}); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": err.Error()}})
+	}
+
+	//delete session
+	store.Destroy()
+
+	return c.Status(http.StatusOK).JSON(utils.ApiResponse{Status: http.StatusOK, Message: "success", Data: &fiber.Map{"data": "Account deleted successfully"}})
 }

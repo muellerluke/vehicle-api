@@ -17,5 +17,7 @@ type User struct {
 	ResetTokenExpiry       int64                `json:"reset_token_expiry,omitempty"`
 	IsActive               bool                 `json:"is_active,omitempty"`
 	StripeCustomerID       string               `json:"stripe_customer_id,omitempty"`
+	PaymentMethodID        string               `json:"payment_method_id,omitempty"`
+	SetupIntentID          string               `json:"setup_intent_id,omitempty"`
 	AutofillSubscriptionID string               `json:"autofill_subscription_id,omitempty"`
 }

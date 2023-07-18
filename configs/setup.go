@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -19,8 +20,22 @@ func GetSession() *session.Store {
 	return sessions
 }
 
+func ConnectRedis() *redis.Client {
+	opt, err := redis.ParseURL(RetrieveEnv("REDIS_URI"))
+
+	if err != nil {
+		panic(err)
+	}
+
+	rdb := redis.NewClient(opt)
+
+	return rdb
+}
+
+var Redis *redis.Client = ConnectRedis()
+
 func ConnectDB() *mongo.Client {
-	client, err := mongo.NewClient(options.Client().ApplyURI(RetrieveEnv("MONGOURI")))
+	client, err := mongo.NewClient(options.Client().ApplyURI(RetrieveEnv("MONGO_URI")))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -64,6 +79,6 @@ var DB *mongo.Client = ConnectDB()
 
 // getting database collections
 func GetCollection(client *mongo.Client, collectionName string) *mongo.Collection {
-	collection := client.Database("test").Collection(collectionName)
+	collection := client.Database("data").Collection(collectionName)
 	return collection
 }
