@@ -149,7 +149,7 @@ func ModelsController(c *fiber.Ctx) error {
 	var year string = c.Query("year")
 	var makeQuery string = c.Query("make")
 
-	makeQuery = strings.ToLower(strings.ReplaceAll(makeQuery, "-", " "))
+	makeQuery = strings.ToLower(strings.ReplaceAll(makeQuery, " ", "-"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -225,8 +225,8 @@ func TrimsController(c *fiber.Ctx) error {
 	var makeQuery string = c.Query("make")
 	var modelQuery string = c.Query("model")
 
-	makeQuery = strings.ToLower(strings.ReplaceAll(makeQuery, "-", " "))
-	modelQuery = strings.ToLower(strings.ReplaceAll(modelQuery, "-", " "))
+	makeQuery = strings.ToLower(strings.ReplaceAll(makeQuery, " ", "-"))
+	modelQuery = strings.ToLower(strings.ReplaceAll(modelQuery, " ", "-"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
