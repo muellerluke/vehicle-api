@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -168,7 +167,6 @@ func ModelsController(c *fiber.Ctx) error {
 		filter := bson.D{{"year", year}, {"findable_name", makeQuery}}
 		err := makeCollection.FindOne(ctx, filter).Decode(&foundMake)
 
-		log.Println(filter)
 		if err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": err.Error()}})
 		}
