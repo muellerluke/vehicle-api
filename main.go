@@ -40,6 +40,11 @@ func main() {
 	autofillRoutes.Use(middlewares.AutofillMiddleware)
 	routes.AutofillRoutes(app)
 
+	//valuation routes should use valuation middleware
+	valuationRoutes := api.Group("/valuation")
+	valuationRoutes.Use(middlewares.ValuationMiddleware)
+	routes.ValuationRoutes(app)
+
 	//admin-api = admin api routes for staff admins
 	adminApi := app.Group("/admin-api")
 	adminApi.Use(middlewares.AdminMiddleware)
