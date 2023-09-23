@@ -1,0 +1,21 @@
+name: Production Deployment
+
+on:
+ push:
+   branches: [ "PRODUCTION" ]
+
+jobs:
+ build:
+   runs-on: ubuntu-latest
+   environment: Production
+   steps:
+    - name: Checkout the repo 
+      uses: actions/checkout@v2
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+    - name: Log in to DigitalOcean Container Registry with short-lived credentials
+      run: doctl registry login --expiry-seconds 1200
+    - name: Build docker image, tag, and push
+      run: docker buildx build --platform linux/amd64 -t registry.digitalocean.com/muellerluke/vehicle-api:latest --push .
