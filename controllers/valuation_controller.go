@@ -3,8 +3,8 @@ package controllers
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
-
 	"regexp"
 	"strconv"
 	"strings"
@@ -28,8 +28,10 @@ import (
 func ValuationController(c *fiber.Ctx) error {
 
 	var vin = c.Query("vin")
-	//var zipCode = c.Query("zip_code")
-	//var radius = c.Query("radius")
+	var zipCode = c.Query("zip_code")
+	var radius = c.Query("radius")
+	var mileage = c.Query("mileage")
+	var multipleYears = c.Query("multiple_years")
 
 	responseVin, err := http.Get("https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/" + vin + "?format=json")
 	if err != nil {
@@ -48,10 +50,10 @@ func ValuationController(c *fiber.Ctx) error {
 	// Create a struct to unmarshal the JSON response
 	var decodedVin struct {
 		Results []struct {
-			Year   string `json:"ModelYear"`
-			Make   string `json:"Make"`
-			Model  string `json:"Model"`
-			Series string `json:"Series"`
+			Variable   string `json:"Variable"`
+			Value      string `json:"Value"`
+			VariableId int    `json:"VariableId"`
+			ValueId    string `json:"ValueId"`
 		} `json:"Results"`
 	}
 
@@ -67,11 +69,10 @@ func ValuationController(c *fiber.Ctx) error {
 		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": "No results found for the VIN."}})
 	}
 
-	result := decodedVin.Results[0]
 	var year string
 	var make string
 	var model string
-	var series string
+	//var series string
 
 	for _, result := range decodedVin.Results {
 		if result.Variable == "Model Year" {
@@ -83,22 +84,27 @@ func ValuationController(c *fiber.Ctx) error {
 		if result.Variable == "Model" {
 			model = result.Value
 		}
-		if result.Variable == "Series" {
+		/*if result.Variable == "Series" {
 			series = result.Value
-		}
+		}*/
 	}
 
-	if year == "" || make == "" || model == "" || series == "" {
+	if year == "" || make == "" || model == "" {
 		fmt.Println("No results found for the VIN.")
 		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": "No results found for the VIN."}})
 	}
 
 	//get valuation
 	var url string
+	var multipleYearsString string = year + "/"
+	if multipleYears == "true" {
+		multipleYearsString = ""
+	}
+
 	if radius == "" {
-		url = "https://www.autotrader.com/cars-for-sale/all-cars/" + year + "/" + strings.ReplaceAll(strings.ToLower(make), " ", "-") + "/" + strings.ReplaceAll(strings.ToLower(model), " ", "-") + "?searchRadius=100&zip=" + zipCode
+		url = "https://www.autotrader.com/cars-for-sale/all-cars/" + multipleYearsString + strings.ReplaceAll(strings.ToLower(make), " ", "-") + "/" + strings.ReplaceAll(strings.ToLower(model), " ", "-") + "?numRecords=100&searchRadius=100&zip=" + zipCode
 	} else {
-		url = "https://www.autotrader.com/cars-for-sale/all-cars/" + year + "/" + strings.ReplaceAll(strings.ToLower(make), " ", "-") + "/" + strings.ReplaceAll(strings.ToLower(model), " ", "-") + "?searchRadius=" + radius + "&zip=" + zipCode
+		url = "https://www.autotrader.com/cars-for-sale/all-cars/" + multipleYearsString + strings.ReplaceAll(strings.ToLower(make), " ", "-") + "/" + strings.ReplaceAll(strings.ToLower(model), " ", "-") + "?numRecords=100&searchRadius=" + radius + "&zip=" + zipCode
 	}
 
 	fmt.Println(url)
@@ -152,20 +158,28 @@ func ValuationController(c *fiber.Ctx) error {
 						return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": "Something went wrong. Please try again later."}})
 					}
 
-					year, err := strconv.Atoi(matches[0])
+					yearAsInt, err := strconv.Atoi(matches[0])
 					if err != nil {
 						fmt.Println("Error converting year to int")
 						return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": err.Error()}})
 					}
 
-					years = append(years, year)
+					years = append(years, yearAsInt)
 				}
 			}
 
 			//check that all maps are the same length
 			if len(prices) != len(mileages) || len(prices) != len(years) {
 				fmt.Println("Error: prices, mileages, and years are not the same length")
+				fmt.Println(strconv.Itoa(len(prices))+" prices: ", prices)
+				fmt.Println(strconv.Itoa(len(mileages))+" mileages: ", mileages)
+				fmt.Println(strconv.Itoa(len(years))+" years: ", years)
 				return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": "Something went wrong. Please try again later."}})
+			}
+
+			if len(prices) < 2 {
+				fmt.Println("Error: not enough results.")
+				return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": "Not enough results. Please expand the search radius and try querying with multipleYears=true"}})
 			}
 
 			r := new(regression.Regression)
@@ -182,16 +196,55 @@ func ValuationController(c *fiber.Ctx) error {
 			fmt.Printf("Regression:\n%s\n", r)
 
 			//return valuation
-			prediction, err := r.Predict([]float64{float64(mileages[0]), float64(years[0])})
+			yearInt, err := strconv.Atoi(year)
+			if err != nil {
+				fmt.Println("Error converting year to int")
+				return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": err.Error()}})
+			}
+
+			var mileageInt int
+
+			if mileage == "" {
+				//get average mileage for specific year
+				var totalMileage int
+				var totalRecords int
+
+				for i, year := range years {
+					if year == yearInt {
+						totalMileage += mileages[i]
+						totalRecords++
+					}
+				}
+
+				if totalRecords == 0 {
+					//get average mileage for all years
+					for _, mileage := range mileages {
+						totalMileage += mileage
+					}
+					totalRecords = len(mileages)
+				}
+
+				mileageInt = totalMileage / totalRecords
+
+			} else {
+				mileageInt, err = strconv.Atoi(mileage)
+				if err != nil {
+					fmt.Println("Error converting mileage to int")
+					return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": err.Error()}})
+				}
+			}
+
+			prediction, err := r.Predict([]float64{float64(mileageInt), float64(yearInt)})
+
 			if err != nil {
 				fmt.Println("Error predicting price")
 			}
 
 			return c.Status(http.StatusOK).JSON(utils.ApiResponse{Status: http.StatusOK, Message: "success", Data: &fiber.Map{
-				"predicted_price": prediction,
+				"predicted_price": math.Floor(prediction*100) / 100,
 				"based_on":        strconv.Itoa(len(prices)) + " results",
-				"mileage":         mileages[0],
-				"year":            years[0],
+				"mileage":         strconv.Itoa(mileageInt),
+				"year":            year,
 				"make":            make,
 				"model":           model,
 			}})
@@ -227,8 +280,6 @@ func ValuationController(c *fiber.Ctx) error {
 			}
 		case tt == html.TextToken:
 			t := z.Token()
-			fmt.Println("isProductElement: ", isProductElement)
-			fmt.Println("isPriceElement: ", isPriceElement)
 
 			if isProductElement {
 				if isMileageElement && strings.Contains(t.Data, " miles") && len(t.Data) < 15 && len(t.Data) > 0 {
@@ -242,7 +293,23 @@ func ValuationController(c *fiber.Ctx) error {
 				}
 
 				if isPriceElement {
-					//log price
+					//check that current element has both mileage and title
+					if len(mileages) < len(listingTitles) {
+						//remove previous listing title
+						listingTitles = listingTitles[:len(listingTitles)-1]
+						isProductElement = false
+					}
+
+					//check that it's not dealer price - if it is, there will be an extra two titles and mileages
+					//need to remove the second to last title and mileage
+					if len(listingTitles) > len(prices)+1 && len(mileages) == len(listingTitles) {
+						indexToRemove := len(listingTitles) - 2
+
+						// Remove the second-to-last element by slicing the slice
+						listingTitles = append(listingTitles[:indexToRemove], listingTitles[indexToRemove+1:]...)
+						mileages = append(mileages[:indexToRemove], mileages[indexToRemove+1:]...)
+					}
+
 					price, err := strconv.Atoi(strings.ReplaceAll(t.Data, ",", ""))
 					if err != nil {
 						fmt.Println("Error converting price to int")
