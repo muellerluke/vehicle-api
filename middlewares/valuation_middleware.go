@@ -36,11 +36,6 @@ func ValuationMiddleware(c *fiber.Ctx) error {
 		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": "Zip code is required"}})
 	}
 
-	radius := c.Query("radius")
-	if radius == "" {
-		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": "Radius is required"}})
-	}
-
 	if rapidAPI == configs.RetrieveEnv("RAPID_API_SECRET") {
 		return c.Next()
 	}
