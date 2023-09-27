@@ -110,11 +110,11 @@ func ValuationController(c *fiber.Ctx) error {
 	client := &http.Client{}
 	req, _ := http.NewRequest("GET", url, nil)
 
-	response, _ := client.Do(req)
-
+	response, err := client.Do(req)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": "Something went wrong. Please try again later."}})
 	}
+
 	defer response.Body.Close()
 
 	//tokenize the response html
