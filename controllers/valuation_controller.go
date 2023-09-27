@@ -117,6 +117,7 @@ func ValuationController(c *fiber.Ctx) error {
 	response, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Error getting response")
+		fmt.Print(err)
 		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": "Something went wrong. Please try again later."}})
 	}
 
