@@ -12,7 +12,7 @@ COPY . .
 
 RUN go build -o /vehicle-api
 
-EXPOSE 3001
+EXPOSE 3000
 
 CMD [ "/vehicle-api" ]
 

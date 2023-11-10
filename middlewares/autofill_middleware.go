@@ -34,14 +34,14 @@ func AutofillMiddleware(c *fiber.Ctx) error {
 	case "/api/v1/autofill/makes":
 		year := c.Query("year")
 		if year == "" {
-			return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": "Year is required"}})
+			return c.Status(http.StatusBadRequest).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": "Year is required"}})
 		}
 		route = "makes"
 	case "/api/v1/autofill/models":
 		year := c.Query("year")
 		make := c.Query("make")
 		if year == "" || make == "" {
-			return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": "Year and make are required"}})
+			return c.Status(http.StatusBadRequest).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": "Year and make are required"}})
 		}
 		route = "models"
 	case "/api/v1/autofill/trims":
@@ -49,7 +49,7 @@ func AutofillMiddleware(c *fiber.Ctx) error {
 		make := c.Query("make")
 		model := c.Query("model")
 		if year == "" || make == "" || model == "" {
-			return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": "Year, make, and model are required"}})
+			return c.Status(http.StatusBadRequest).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": "Year, make, and model are required"}})
 		}
 		route = "trims"
 	case "/api/v1/autofill/years":
@@ -57,7 +57,7 @@ func AutofillMiddleware(c *fiber.Ctx) error {
 	}
 
 	if route == "" {
-		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": "Invalid path"}})
+		return c.Status(http.StatusBadRequest).JSON(utils.ApiResponse{Status: http.StatusBadRequest, Message: "error", Data: &fiber.Map{"data": "Invalid path"}})
 	}
 
 	if rapidAPI == configs.RetrieveEnv("RAPID_API_SECRET") {
@@ -74,14 +74,14 @@ func AutofillMiddleware(c *fiber.Ctx) error {
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusUnauthorized, Message: "error", Data: &fiber.Map{"data": "Invalid key"}})
+			return c.Status(http.StatusUnauthorized).JSON(utils.ApiResponse{Status: http.StatusUnauthorized, Message: "error", Data: &fiber.Map{"data": "Invalid key"}})
 		}
 		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusInternalServerError, Message: "error", Data: &fiber.Map{"data": "Something went wrong. Please try again later."}})
 	}
 
 	// if key has a list of authorized domains and the host is not in the list, return unauthorized, else continue
 	if len(key.AuthorizedDomains) > 0 && slices.Contains(key.AuthorizedDomains, host) == false {
-		return c.Status(http.StatusInternalServerError).JSON(utils.ApiResponse{Status: http.StatusUnauthorized, Message: "error", Data: &fiber.Map{"data": "Invalid key"}})
+		return c.Status(http.StatusUnauthorized).JSON(utils.ApiResponse{Status: http.StatusUnauthorized, Message: "error", Data: &fiber.Map{"data": "Invalid key"}})
 	}
 
 	// log call with logger function

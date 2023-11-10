@@ -7,6 +7,7 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/monitor"
 	//"github.com/gofiber/template/html/v2"
@@ -29,6 +30,10 @@ func main() {
 	//middlewares
 	app.Use(logger.New())
 	app.Get("/metrics", monitor.New())
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*, http://localhost:3000, https://dev.mymobilemods.com, https://mymobilemods.com, https://www.mymobilemods.com",
+		AllowHeaders: "Origin, Content-Type, Accept",
+	}))
 
 	//create groups for middleware
 
